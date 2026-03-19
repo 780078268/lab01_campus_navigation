@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北邮校园导航系统</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background: linear-gradient(135deg, #1a3a5c, #2d6aa0);
+      color: white; padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2); flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header .sub { font-size: 11px; opacity: 0.75; }
+    .header-btns { display: flex; gap: 8px; }
+    .hbtn {
+      font-size: 12px; color: rgba(255,255,255,0.85); text-decoration: none;
+      padding: 5px 12px; border: 1px solid rgba(255,255,255,0.35); border-radius: 5px;
+      background: none; cursor: pointer; transition: background 0.2s;
+    }
+    .hbtn:hover { background: rgba(255,255,255,0.15); }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── 地图 ── */
+    .map-panel { flex: 1; background: #1a1a2e; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .map-wrapper { position: relative; line-height: 0; }
+    .map-wrapper img { display: block; max-width: 100%; max-height: calc(100vh - 52px); }
+    .map-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    /* ── 右侧面板 ── */
+    .control-panel { width: 360px; background: white; display: flex; flex-direction: column; box-shadow: -2px 0 12px rgba(0,0,0,0.08); overflow-y: auto; }
+
+    .section { padding: 16px 18px; border-bottom: 1px solid #f0f0f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* ── 输入框 ── */
+    .input-group { position: relative; margin-bottom: 10px; }
+    .input-label { font-size: 12px; color: #666; margin-bottom: 4px; display: block; }
+    .input-wrap { position: relative; }
+    .input-wrap input {
+      width: 100%; padding: 8px 28px 8px 11px; border: 1.5px solid #e0e0e0; border-radius: 7px;
+      font-size: 13px; color: #333; outline: none; transition: border-color 0.2s;
+    }
+    .input-wrap input:focus { border-color: #2d6aa0; }
+    .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #bbb; font-size: 15px; line-height: 1; display: none; }
+    .input-wrap input:not(:placeholder-shown) ~ .clear-btn { display: block; }
+
+    .dropdown { position: absolute; top: calc(100% + 3px); left: 0; right: 0; background: white; border: 1.5px solid #e0e0e0; border-radius: 7px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; }
+    .dropdown.show { display: block; }
+    .dropdown-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .dropdown-item:hover { background: #f0f6ff; }
+    .dropdown-item .iname { font-size: 13px; color: #333; }
+    .dropdown-item .idesc { font-size: 11px; color: #aaa; margin-left: auto; }
+    .dropdown-empty { padding: 12px; text-align: center; color: #aaa; font-size: 12px; }
+
+    /* ── 按钮 ── */
+    .nav-btn {
+      width: 100%; padding: 10px; border: none; border-radius: 7px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s; color: white;
+      background: linear-gradient(135deg, #1a3a5c, #2d6aa0);
+    }
+    .nav-btn.green { background: linear-gradient(135deg, #1e7e34, #28a745); }
+    .nav-btn:hover { opacity: 0.9; }
+    .nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── 结果区 ── */
+    .result-section { padding: 16px 18px; flex: 1; }
+    .result-empty { text-align: center; color: #ccc; margin-top: 28px; font-size: 12px; line-height: 1.8; }
+
+    .result-card { background: #f8faff; border: 1.5px solid #d0e4f7; border-radius: 10px; padding: 14px; }
+    .result-meta { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    .result-dist { font-size: 22px; font-weight: 700; color: #1a3a5c; }
+    .result-dist span { font-size: 12px; font-weight: 400; color: #888; }
+    .result-nodes { font-size: 11px; color: #aaa; }
+    .result-tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-bottom: 8px; }
+    .tag-route { background: #e8f4fd; color: #2d6aa0; }
+    .tag-traverse { background: #e8f8e8; color: #28a745; }
+
+    .path-label { font-size: 11px; color: #aaa; margin-bottom: 6px; font-weight: 600; }
+    .path-list { display: flex; flex-direction: column; max-height: 340px; overflow-y: auto; }
+    .path-step { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+    .path-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: #2d6aa0; }
+    .path-step:first-child .path-dot { background: #27ae60; }
+    .path-step:last-child .path-dot { background: #e74c3c; }
+    .path-name { font-size: 12px; color: #333; }
+    .seg-dist-row { display: flex; align-items: center; gap: 4px; padding: 1px 0 1px 11px; }
+    .seg-arrow { font-size: 10px; color: #ccc; }
+    .seg-meters { font-size: 11px; color: #f39c12; font-weight: 600; }
+
+    .error-card { background: #fff5f5; border: 1.5px solid #fcc; border-radius: 10px; padding: 13px; color: #c0392b; font-size: 13px; }
+    .no-coord-tip { font-size: 10px; color: #f39c12; margin-top: 6px; }
+    .no-coord-tip a { color: #f39c12; }
+
+    /* ── 管理弹窗 ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 12px; width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.25); }
+    .modal-header { padding: 18px 20px 14px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h2 { font-size: 16px; color: #1a3a5c; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #aaa; line-height: 1; }
+    .modal-close:hover { color: #555; }
+    .modal-tabs { display: flex; padding: 12px 16px 0; gap: 4px; border-bottom: 1px solid #f0f0f0; }
+    .m-tab { padding: 6px 12px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 12px; font-weight: 600; color: #888; background: none; border: none; border-bottom: 2px solid transparent; }
+    .m-tab.active { color: #1a3a5c; border-bottom-color: #2d6aa0; }
+    .modal-body { padding: 18px 20px; }
+    .modal-body .input-group { margin-bottom: 14px; }
+    .modal-body label { font-size: 12px; color: #666; margin-bottom: 5px; display: block; }
+    .modal-body input { width: 100%; padding: 8px 11px; border: 1.5px solid #e0e0e0; border-radius: 7px; font-size: 13px; outline: none; }
+    .modal-body input:focus { border-color: #2d6aa0; }
+    .modal-note { font-size: 11px; color: #aaa; margin-top: -8px; margin-bottom: 12px; line-height: 1.5; }
+    .modal-submit { width: 100%; padding: 10px; border: none; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; color: white; background: linear-gradient(135deg, #1a3a5c, #2d6aa0); }
+    .modal-submit.danger { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+    .modal-msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; display: none; }
+    .modal-msg.ok { background: #e8f8e8; color: #27ae60; display: block; }
+    .modal-msg.err { background: #fff5f5; color: #c0392b; display: block; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <div><h1>北邮校园导航系统</h1><div class="sub">2024213672 李韶庸</div></div>
+  </div>
+  <div class="header-btns">
+    <button class="hbtn" onclick="openModal()">⚙️ 管理</button>
+    <a class="hbtn" href="/annotate" target="_blank">🗺️ 标注</a>
+  </div>
+</header>
+
+<div class="main">
+  <!-- 地图 -->
+  <div class="map-panel">
+    <div class="map-wrapper" id="mapWrapper">
+      <img id="mapImg" src="/map.jpg" alt="北邮本部地图" onload="onMapLoad()">
+      <canvas id="mapCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- 右侧面板 -->
+  <div class="control-panel">
+
+    <!-- 路线规划 -->
+    <div class="section">
+      <div class="section-title">路线规划</div>
+      <div class="input-group">
+        <label class="input-label">起点</label>
+        <div class="input-wrap">
+          <input type="text" id="fromInput" placeholder="搜索起点，如：图书馆" autocomplete="off">
+          <button class="clear-btn" onclick="clearInput('from')">×</button>
+        </div>
+        <div class="dropdown" id="fromDropdown"></div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">终点</label>
+        <div class="input-wrap">
+          <input type="text" id="toInput" placeholder="搜索终点，如：主楼路口" autocomplete="off">
+          <button class="clear-btn" onclick="clearInput('to')">×</button>
+        </div>
+        <div class="dropdown" id="toDropdown"></div>
+      </div>
+      <button class="nav-btn" id="navBtn" onclick="navigate()">开始导航</button>
+    </div>
+
+    <!-- 遍历校园 -->
+    <div class="section">
+      <div class="section-title">遍历所有建筑</div>
+      <div class="input-group">
+        <label class="input-label">出发点</label>
+        <div class="input-wrap">
+          <input type="text" id="travInput" placeholder="搜索出发建筑..." autocomplete="off">
+          <button class="clear-btn" onclick="clearInput('trav')">×</button>
+        </div>
+        <div class="dropdown" id="travDropdown"></div>
+      </div>
+      <button class="nav-btn green" id="travBtn" onclick="traverse()">🚶 遍历所有建筑（最近邻）</button>
+    </div>
+
+    <!-- 结果 -->
+    <div class="result-section" id="resultSection">
+      <div class="result-empty">在左侧选择功能后<br>结果将显示在此处</div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理弹窗 -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ 地图数据管理</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="m-tab active" onclick="switchTab('addB')">添加建筑</button>
+      <button class="m-tab" onclick="switchTab('delB')">删除建筑</button>
+      <button class="m-tab" onclick="switchTab('addR')">添加道路</button>
+      <button class="m-tab" onclick="switchTab('delR')">删除道路</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- 添加建筑 -->
+      <div id="tab-addB">
+        <div class="input-group"><label>建筑名称</label><input type="text" id="ab-name" placeholder="如：创新楼B座"></div>
+        <div class="input-group"><label>描述/类型</label><input type="text" id="ab-desc" placeholder="如：教学楼"></div>
+        <p class="modal-note">添加后请前往 <a href="/annotate" target="_blank">标注工具</a> 为新建筑标注地图坐标。</p>
+        <button class="modal-submit" onclick="doAddBuilding()">✅ 添加建筑</button>
+      </div>
+
+      <!-- 删除建筑 -->
+      <div id="tab-delB" style="display:none">
+        <div class="input-group"><label>建筑名称</label><input type="text" id="db-name" placeholder="输入精确名称，如：主楼东门"></div>
+        <p class="modal-note">⚠️ 删除建筑会同时删除其所有关联道路，操作不可撤销。</p>
+        <button class="modal-submit danger" onclick="doDelBuilding()">🗑️ 删除建筑</button>
+      </div>
+
+      <!-- 添加道路 -->
+      <div id="tab-addR" style="display:none">
+        <div class="input-group"><label>起点建筑</label><input type="text" id="ar-from" placeholder="如：图书馆南门"></div>
+        <div class="input-group"><label>终点建筑</label><input type="text" id="ar-to" placeholder="如：学二路口"></div>
+        <div class="input-group"><label>距离（米）</label><input type="number" id="ar-dist" placeholder="如：120" min="1"></div>
+        <button class="modal-submit" onclick="doAddRoad()">✅ 添加道路</button>
+      </div>
+
+      <!-- 删除道路 -->
+      <div id="tab-delR" style="display:none">
+        <div class="input-group"><label>起点建筑</label><input type="text" id="dr-from" placeholder="如：图书馆南门"></div>
+        <div class="input-group"><label>终点建筑</label><input type="text" id="dr-to" placeholder="如：学二路口"></div>
+        <p class="modal-note">道路是双向的，填写任意一个方向即可删除。</p>
+        <button class="modal-submit danger" onclick="doDelRoad()">🗑️ 删除道路</button>
+      </div>
+
+      <div class="modal-msg" id="modalMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const appState = { from:'', to:'', trav:'', coordinates:{}, currentPath:[], isTraversal:false };
+  let debounceTimer = {};
+
+  // ═══ 地图 & Canvas ═══════════════════════════════════
+  function onMapLoad() {
+    resizeCanvas();
+    window.addEventListener('resize', () => { resizeCanvas(); redrawCanvas(); });
+    loadCoordinates();
+  }
+  function resizeCanvas() {
+    const img = document.getElementById('mapImg');
+    const canvas = document.getElementById('mapCanvas');
+    canvas.width = img.clientWidth;
+    canvas.height = img.clientHeight;
+  }
+  async function loadCoordinates() {
+    try {
+      const res = await fetch('/api/coordinates');
+      appState.coordinates = await res.json();
+      redrawCanvas();
+    } catch(e) {}
+  }
+  function redrawCanvas() {
+    const canvas = document.getElementById('mapCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const coords = appState.coordinates;
+    const path = appState.currentPath;
+
+    // 所有已标注节点（小蓝点）
+    for (const [name, [x, y]] of Object.entries(coords)) {
+      if (path.includes(name)) continue;
+      const px = x * canvas.width, py = y * canvas.height;
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(80,150,220,0.55)';
+      ctx.fill();
+    }
+
+    // 路径连线
+    if (path.length >= 2) {
+      const pts = path.map(n => coords[n]).filter(Boolean);
+      if (pts.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0]*canvas.width, pts[0][1]*canvas.height);
+        for (let i = 1; i < pts.length; i++)
+          ctx.lineTo(pts[i][0]*canvas.width, pts[i][1]*canvas.height);
+        ctx.strokeStyle = appState.isTraversal ? '#27ae60' : '#f39c12';
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+    }
+
+    // 路径节点
+    for (let i = 0; i < path.length; i++) {
+      const coord = coords[path[i]];
+      if (!coord) continue;
+      const px = coord[0]*canvas.width, py = coord[1]*canvas.height;
+      const isFirst = i===0, isLast = i===path.length-1;
+      const color = isFirst ? '#27ae60' : (isLast ? '#e74c3c' : (appState.isTraversal ? '#27ae60' : '#f39c12'));
+      const r = (isFirst||isLast) ? 7 : 4;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5; ctx.stroke();
+      if (isFirst || isLast) {
+        ctx.font = 'bold 11px "PingFang SC",sans-serif';
+        ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 2.5;
+        ctx.strokeText(path[i], px+9, py+4);
+        ctx.fillStyle = 'white'; ctx.fillText(path[i], px+9, py+4);
+      }
+    }
+  }
+
+  // ═══ 搜索输入框 ══════════════════════════════════════
+  function setupInput(id, stateKey) {
+    const input = document.getElementById(id+'Input');
+    const dropdown = document.getElementById(id+'Dropdown');
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer[stateKey]);
+      appState[stateKey] = '';
+      debounceTimer[stateKey] = setTimeout(() => fetchSuggestions(input.value, dropdown, stateKey), 150);
+    });
+    input.addEventListener('focus', () => { if(input.value) fetchSuggestions(input.value, dropdown, stateKey); });
+    document.addEventListener('click', e => {
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
+    });
+  }
+  async function fetchSuggestions(q, dropdown, stateKey) {
+    if (!q.trim()) { dropdown.classList.remove('show'); return; }
+    try {
+      const res = await fetch('/api/buildings?q='+encodeURIComponent(q));
+      renderDropdown(await res.json(), dropdown, stateKey);
+    } catch(e) {}
+  }
+  function renderDropdown(items, dropdown, stateKey) {
+    if (!items.length) {
+      dropdown.innerHTML = '<div class="dropdown-empty">未找到匹配地点</div>';
+    } else {
+      dropdown.innerHTML = items.slice(0,12).map(item =>
+        `<div class="dropdown-item" onclick="selectItem(${escHtml(JSON.stringify(item.name))}, '${stateKey}')">
+          <span class="iname">${escHtml(item.name)}</span>
+          <span class="idesc">${escHtml(item.desc)}</span>
+        </div>`
+      ).join('');
+    }
+    dropdown.classList.add('show');
+  }
+  function selectItem(name, stateKey) {
+    appState[stateKey] = name;
+    document.getElementById(stateKey+'Input').value = name;
+    document.getElementById(stateKey+'Dropdown').classList.remove('show');
+  }
+  function clearInput(stateKey) {
+    appState[stateKey] = '';
+    document.getElementById(stateKey+'Input').value = '';
+    document.getElementById(stateKey+'Dropdown').classList.remove('show');
+  }
+
+  // ═══ 导航 ════════════════════════════════════════════
+  async function navigate() {
+    if (!appState.from) appState.from = document.getElementById('fromInput').value.trim();
+    if (!appState.to)   appState.to   = document.getElementById('toInput').value.trim();
+    if (!appState.from || !appState.to) { showError('请输入起点和终点'); return; }
+    setLoading('navBtn', true, '计算中...');
+    try {
+      const res = await fetch('/api/route?from='+encodeURIComponent(appState.from)+'&to='+encodeURIComponent(appState.to));
+      const data = await res.json();
+      if (data.error) { showError(data.error); appState.currentPath=[]; }
+      else { showResult(data); appState.currentPath=data.path; appState.isTraversal=false; }
+      redrawCanvas();
+    } catch(e) { showError('服务器连接失败'); }
+    finally { setLoading('navBtn', false, '开始导航'); }
+  }
+
+  // ═══ 遍历 ════════════════════════════════════════════
+  async function traverse() {
+    if (!appState.trav) appState.trav = document.getElementById('travInput').value.trim();
+    if (!appState.trav) { showError('请输入出发点'); return; }
+    setLoading('travBtn', true, '遍历计算中...');
+    try {
+      const res = await fetch('/api/traverse?start='+encodeURIComponent(appState.trav));
+      const data = await res.json();
+      if (data.error) { showError(data.error); appState.currentPath=[]; }
+      else { showResult(data); appState.currentPath=data.path; appState.isTraversal=true; }
+      redrawCanvas();
+    } catch(e) { showError('服务器连接失败'); }
+    finally { setLoading('travBtn', false, '🚶 遍历所有建筑（最近邻）'); }
+  }
+
+  function setLoading(btnId, loading, text) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading; btn.textContent = text;
+  }
+
+  // ═══ 结果展示 ════════════════════════════════════════
+  function showResult(data) {
+    const coords = appState.coordinates;
+    const missing = data.path.filter(n => !coords[n]);
+    const tag = data.isTraversal
+      ? `<span class="result-tag tag-traverse">遍历模式 · ${data.path.length} 个建筑</span>`
+      : `<span class="result-tag tag-route">最短路线 · ${data.path.length} 个节点</span>`;
+
+    // 构建路径列表（含每段距离）
+    let steps = '';
+    for (let i = 0; i < data.path.length; i++) {
+      const isFirst = i===0, isLast = i===data.path.length-1;
+      steps += `<div class="path-step"><div class="path-dot"></div><span class="path-name">${escHtml(data.path[i])}</span></div>`;
+      if (!isLast && data.segmentDists && data.segmentDists[i] !== undefined) {
+        const km = data.segmentDists[i] >= 1000
+          ? (data.segmentDists[i]/1000).toFixed(1)+'km'
+          : data.segmentDists[i]+'m';
+        steps += `<div class="seg-dist-row"><span class="seg-arrow">↓</span><span class="seg-meters">${km}</span></div>`;
+      } else if (!isLast) {
+        steps += `<div class="seg-dist-row"><span class="seg-arrow">↓</span></div>`;
+      }
+    }
+
+    const tipHtml = missing.length > 0
+      ? `<div class="no-coord-tip">⚠️ ${missing.length} 个节点未标注坐标，路径仅文字显示。<a href="/annotate" target="_blank">去标注</a></div>`
+      : '';
+
+    const distStr = data.totalDist >= 1000
+      ? (data.totalDist/1000).toFixed(2)+'<span> km</span>'
+      : data.totalDist+'<span> 米</span>';
+
+    document.getElementById('resultSection').innerHTML = `
+      <div class="result-card">
+        <div class="result-meta">
+          <span class="result-dist">${distStr}</span>
+          <span class="result-nodes">${data.isTraversal ? '总行程' : '最短距离'}</span>
+        </div>
+        ${tag}${tipHtml}
+        <div class="path-label">${data.isTraversal ? '建议访问顺序' : '完整路线'}</div>
+        <div class="path-list">${steps}</div>
+      </div>`;
+  }
+
+  function showError(msg) {
+    document.getElementById('resultSection').innerHTML = `<div class="error-card">❌ ${escHtml(msg)}</div>`;
+  }
+
+  // ═══ 管理弹窗 ════════════════════════════════════════
+  function openModal() {
+    document.getElementById('modalOverlay').classList.add('show');
+    document.getElementById('modalMsg').className = 'modal-msg';
+  }
+  function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+
+  let currentTab = 'addB';
+  function switchTab(tab) {
+    document.getElementById('tab-'+currentTab).style.display = 'none';
+    document.querySelectorAll('.m-tab').forEach((t,i)=>t.classList.remove('active'));
+    document.getElementById('tab-'+tab).style.display = 'block';
+    document.querySelectorAll('.m-tab')[[...['addB','delB','addR','delR']].indexOf(tab)].classList.add('active');
+    document.getElementById('modalMsg').className = 'modal-msg';
+    currentTab = tab;
+  }
+
+  function showModalMsg(ok, msg) {
+    const el = document.getElementById('modalMsg');
+    el.className = 'modal-msg ' + (ok ? 'ok' : 'err');
+    el.textContent = ok ? '✅ '+msg : '❌ '+msg;
+  }
+
+  async function doAddBuilding() {
+    const name = document.getElementById('ab-name').value.trim();
+    const desc = document.getElementById('ab-desc').value.trim();
+    if (!name) { showModalMsg(false, '名称不能为空'); return; }
+    const res = await fetch('/api/building', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'add',name,desc:desc||'其他'})});
+    const data = await res.json();
+    if (data.ok) { showModalMsg(true, `已添加「${name}」`); document.getElementById('ab-name').value=''; document.getElementById('ab-desc').value=''; }
+    else showModalMsg(false, data.error);
+  }
+
+  async function doDelBuilding() {
+    const name = document.getElementById('db-name').value.trim();
+    if (!name) { showModalMsg(false, '名称不能为空'); return; }
+    if (!confirm(`确认删除「${name}」及其所有关联道路？`)) return;
+    const res = await fetch('/api/building', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete',name})});
+    const data = await res.json();
+    if (data.ok) { showModalMsg(true, `已删除「${name}」`); document.getElementById('db-name').value=''; }
+    else showModalMsg(false, data.error);
+  }
+
+  async function doAddRoad() {
+    const from = document.getElementById('ar-from').value.trim();
+    const to   = document.getElementById('ar-to').value.trim();
+    const dist = parseInt(document.getElementById('ar-dist').value);
+    if (!from||!to||!dist) { showModalMsg(false, '请填写完整信息'); return; }
+    const res = await fetch('/api/road', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'add',from,to,dist})});
+    const data = await res.json();
+    if (data.ok) { showModalMsg(true, `已添加 ${from} ↔ ${to}（${dist}m）`); }
+    else showModalMsg(false, data.error);
+  }
+
+  async function doDelRoad() {
+    const from = document.getElementById('dr-from').value.trim();
+    const to   = document.getElementById('dr-to').value.trim();
+    if (!from||!to) { showModalMsg(false, '请填写起终点'); return; }
+    if (!confirm(`确认删除 ${from} ↔ ${to} 之间的道路？`)) return;
+    const res = await fetch('/api/road', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'delete',from,to})});
+    const data = await res.json();
+    if (data.ok) { showModalMsg(true, `已删除道路`); }
+    else showModalMsg(false, data.error);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  setupInput('from', 'from');
+  setupInput('to',   'to');
+  setupInput('trav', 'trav');
+
+  // 回车触发导航
+  document.getElementById('fromInput').addEventListener('keydown', e => { if(e.key==='Enter') navigate(); });
+  document.getElementById('toInput').addEventListener('keydown',   e => { if(e.key==='Enter') navigate(); });
+  document.getElementById('travInput').addEventListener('keydown', e => { if(e.key==='Enter') traverse(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>节点坐标标注工具 - 北邮校园导航</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #1a1a2e; height: 100vh; display: flex; flex-direction: column; color: #333; }
+
+    header {
+      background: linear-gradient(135deg, #2c3e50, #4a6741);
+      color: white; padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; }
+    header .hint { font-size: 12px; opacity: 0.8; }
+    .header-btns { display: flex; gap: 10px; }
+    .btn {
+      padding: 7px 16px; border: none; border-radius: 6px;
+      font-size: 13px; cursor: pointer; font-weight: 600;
+    }
+    .btn-save { background: #27ae60; color: white; }
+    .btn-save:hover { background: #229954; }
+    .btn-clear { background: rgba(255,255,255,0.2); color: white; }
+    .btn-clear:hover { background: rgba(255,255,255,0.3); }
+    .btn-nav { background: #2980b9; color: white; text-decoration: none; display: flex; align-items: center; }
+    .btn-nav:hover { background: #2471a3; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* 左侧地图 */
+    .map-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+    .map-wrapper { position: relative; line-height: 0; cursor: crosshair; }
+    .map-wrapper img { display: block; max-width: 100%; max-height: calc(100vh - 52px); }
+    .map-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+    /* 右侧面板 */
+    .side-panel {
+      width: 300px; background: white; display: flex; flex-direction: column;
+      box-shadow: -2px 0 12px rgba(0,0,0,0.3);
+    }
+
+    .status-bar {
+      padding: 10px 16px; background: #f8f9fa; border-bottom: 1px solid #eee;
+      font-size: 13px; color: #555;
+    }
+    .status-bar span { font-weight: 700; color: #27ae60; }
+
+    .search-box { padding: 10px 12px; border-bottom: 1px solid #eee; }
+    .search-box input {
+      width: 100%; padding: 8px 12px; border: 1.5px solid #ddd; border-radius: 6px;
+      font-size: 13px; outline: none;
+    }
+    .search-box input:focus { border-color: #4a6741; }
+
+    .building-list { flex: 1; overflow-y: auto; }
+    .list-item {
+      display: flex; align-items: center; padding: 9px 14px; cursor: pointer;
+      border-bottom: 1px solid #f5f5f5; transition: background 0.15s; gap: 10px;
+    }
+    .list-item:hover { background: #f0f8ff; }
+    .list-item.selected { background: #e8f4fd; border-left: 3px solid #2980b9; }
+    .list-item.annotated { }
+    .dot-indicator {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      border: 2px solid #ccc; background: white;
+    }
+    .dot-indicator.done { background: #27ae60; border-color: #27ae60; }
+    .dot-indicator.selected { background: #2980b9; border-color: #2980b9; }
+    .item-name { font-size: 13px; color: #333; flex: 1; }
+    .item-desc { font-size: 11px; color: #aaa; }
+    .item-del {
+      font-size: 14px; color: #ccc; cursor: pointer; padding: 0 2px;
+      display: none; line-height: 1;
+    }
+    .list-item:hover .item-del { display: block; }
+    .item-del:hover { color: #e74c3c; }
+
+    /* 底部状态 */
+    .selected-hint {
+      padding: 10px 14px; background: #fff8e1; border-top: 1px solid #ffe082;
+      font-size: 12px; color: #795548; min-height: 38px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🗺️ 节点坐标标注工具</h1>
+      <div class="hint">① 点击右侧节点名称选中 → ② 在地图上点击对应位置 → ③ 完成后保存</div>
+    </div>
+    <div class="header-btns">
+      <button class="btn btn-clear" onclick="clearAll()">🗑️ 清除全部</button>
+      <button class="btn btn-save" onclick="saveCoords()">💾 保存坐标</button>
+      <a class="btn btn-nav" href="/">← 返回导航</a>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="map-area">
+      <div class="map-wrapper" id="mapWrapper">
+        <img id="mapImg" src="/map.jpg" alt="北邮本部地图" onload="onImageLoad()">
+        <canvas id="mapCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <div class="status-bar">已标注 <span id="doneCount">0</span> / <span id="totalCount">0</span> 个节点</div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="搜索节点名称..." oninput="filterList()">
+      </div>
+      <div class="building-list" id="buildingList"></div>
+      <div class="selected-hint" id="selectedHint">👆 请先点击右侧列表选择一个节点</div>
+    </div>
+  </div>
+
+  <script>
+    let allBuildings = [];
+    let coordinates = {};   // { name: [x_frac, y_frac] }
+    let selectedName = null;
+
+    // 初始化：加载建筑列表和已有坐标
+    async function init() {
+      const [bRes, cRes] = await Promise.all([
+        fetch('/api/buildings?q='),
+        fetch('/api/coordinates')
+      ]);
+      allBuildings = await bRes.json();
+      coordinates = await cRes.json();
+      document.getElementById('totalCount').textContent = allBuildings.length;
+      renderList(allBuildings);
+      updateDoneCount();
+    }
+
+    function renderList(items) {
+      const list = document.getElementById('buildingList');
+      list.innerHTML = items.map(b => {
+        const hasDot = coordinates[b.name] !== undefined;
+        const isSelected = b.name === selectedName;
+        return `<div class="list-item ${hasDot ? 'annotated' : ''} ${isSelected ? 'selected' : ''}"
+                     id="item-${CSS.escape(b.name)}"
+                     onclick="selectBuilding(${escHtml(JSON.stringify(b.name))})">
+          <div class="dot-indicator ${isSelected ? 'selected' : (hasDot ? 'done' : '')}"></div>
+          <span class="item-name">${escHtml(b.name)}</span>
+          <span class="item-desc">${escHtml(b.desc)}</span>
+          ${hasDot ? `<span class="item-del" onclick="event.stopPropagation();deleteCoord(${escHtml(JSON.stringify(b.name))})">✕</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    function filterList() {
+      const q = document.getElementById('searchInput').value.trim();
+      const filtered = q ? allBuildings.filter(b => b.name.includes(q) || b.desc.includes(q)) : allBuildings;
+      renderList(filtered);
+    }
+
+    function selectBuilding(name) {
+      selectedName = name;
+      document.getElementById('selectedHint').textContent = `✅ 已选中：${name}，请在地图上点击对应位置`;
+      filterList();
+    }
+
+    function deleteCoord(name) {
+      delete coordinates[name];
+      if (selectedName === name) selectedName = null;
+      updateDoneCount();
+      filterList();
+      redraw();
+    }
+
+    function updateDoneCount() {
+      document.getElementById('doneCount').textContent = Object.keys(coordinates).length;
+    }
+
+    // 地图点击：记录坐标
+    function onImageLoad() {
+      resizeCanvas();
+      document.getElementById('mapCanvas').addEventListener('click', onMapClick);
+      window.addEventListener('resize', () => { resizeCanvas(); redraw(); });
+    }
+
+    function resizeCanvas() {
+      const img = document.getElementById('mapImg');
+      const canvas = document.getElementById('mapCanvas');
+      canvas.width = img.clientWidth;
+      canvas.height = img.clientHeight;
+      redraw();
+    }
+
+    function onMapClick(e) {
+      if (!selectedName) {
+        document.getElementById('selectedHint').textContent = '⚠️ 请先点击右侧列表选择一个节点';
+        return;
+      }
+      const canvas = document.getElementById('mapCanvas');
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      coordinates[selectedName] = [x, y];
+      updateDoneCount();
+
+      // 自动跳到下一个未标注节点
+      const current = selectedName;
+      const idx = allBuildings.findIndex(b => b.name === current);
+      let next = null;
+      for (let i = idx + 1; i < allBuildings.length; i++) {
+        if (!coordinates[allBuildings[i].name]) { next = allBuildings[i].name; break; }
+      }
+      selectedName = next;
+      document.getElementById('selectedHint').textContent = next
+        ? `✅ 已标注：${current}，下一个：${next}`
+        : `✅ 已标注：${current}，所有节点已标注完毕！`;
+
+      filterList();
+      redraw();
+      // 滚动到下一个节点
+      if (next) {
+        const el = document.querySelector(`#buildingList .list-item.selected`);
+        if (el) el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    // 绘制所有已标注节点
+    function redraw() {
+      const canvas = document.getElementById('mapCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (const [name, [x, y]] of Object.entries(coordinates)) {
+        const px = x * canvas.width;
+        const py = y * canvas.height;
+        const isSelected = name === selectedName;
+
+        // 圆点
+        ctx.beginPath();
+        ctx.arc(px, py, isSelected ? 4 : 2, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? '#2980b9' : '#27ae60';
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 标签（只有选中时显示，普通节点不显示标签避免杂乱）
+        if (isSelected) {
+          ctx.font = 'bold 12px "PingFang SC", sans-serif';
+          ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+          ctx.lineWidth = 3;
+          ctx.strokeText(name, px + 6, py + 4);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(name, px + 6, py + 4);
+        } else {
+          ctx.font = '10px "PingFang SC", sans-serif';
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+          ctx.lineWidth = 2.5;
+          ctx.strokeText(name, px + 4, py + 3);
+          ctx.fillStyle = '#e8f8e8';
+          ctx.fillText(name, px + 4, py + 3);
+        }
+      }
+
+      // 如果选中了但还没标注，在鼠标附近显示提示
+    }
+
+    async function saveCoords() {
+      try {
+        const res = await fetch('/api/coordinates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(coordinates)
+        });
+        const data = await res.json();
+        if (data.ok) alert(`✅ 保存成功！已保存 ${Object.keys(coordinates).length} 个节点坐标`);
+        else alert('❌ 保存失败');
+      } catch(e) { alert('❌ 保存失败: ' + e.message); }
+    }
+
+    function clearAll() {
+      if (!confirm('确认清除所有已标注的坐标？')) return;
+      coordinates = {};
+      selectedName = null;
+      updateDoneCount();
+      filterList();
+      redraw();
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    init();
+  </script>
+</body>
+</html>
