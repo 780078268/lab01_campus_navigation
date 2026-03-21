@@ -213,23 +213,53 @@
 
       <!-- 删除建筑 -->
       <div id="tab-delB" style="display:none">
-        <div class="input-group"><label>建筑名称</label><input type="text" id="db-name" placeholder="输入精确名称，如：主楼东门"></div>
+        <div class="input-group">
+          <label>建筑名称</label>
+          <div class="input-wrap">
+            <input type="text" id="db-name" placeholder="输入精确名称，如：主楼东门" autocomplete="off">
+          </div>
+          <div class="dropdown" id="db-name-dropdown"></div>
+        </div>
         <p class="modal-note">⚠️ 删除建筑会同时删除其所有关联道路，操作不可撤销。</p>
         <button class="modal-submit danger" onclick="doDelBuilding()">🗑️ 删除建筑</button>
       </div>
 
       <!-- 添加道路 -->
       <div id="tab-addR" style="display:none">
-        <div class="input-group"><label>起点建筑</label><input type="text" id="ar-from" placeholder="如：图书馆南门"></div>
-        <div class="input-group"><label>终点建筑</label><input type="text" id="ar-to" placeholder="如：学二路口"></div>
+        <div class="input-group">
+          <label>起点建筑</label>
+          <div class="input-wrap">
+            <input type="text" id="ar-from" placeholder="如：图书馆南门" autocomplete="off">
+          </div>
+          <div class="dropdown" id="ar-from-dropdown"></div>
+        </div>
+        <div class="input-group">
+          <label>终点建筑</label>
+          <div class="input-wrap">
+            <input type="text" id="ar-to" placeholder="如：学二路口" autocomplete="off">
+          </div>
+          <div class="dropdown" id="ar-to-dropdown"></div>
+        </div>
         <div class="input-group"><label>距离（米）</label><input type="number" id="ar-dist" placeholder="如：120" min="1"></div>
         <button class="modal-submit" onclick="doAddRoad()">✅ 添加道路</button>
       </div>
 
       <!-- 删除道路 -->
       <div id="tab-delR" style="display:none">
-        <div class="input-group"><label>起点建筑</label><input type="text" id="dr-from" placeholder="如：图书馆南门"></div>
-        <div class="input-group"><label>终点建筑</label><input type="text" id="dr-to" placeholder="如：学二路口"></div>
+        <div class="input-group">
+          <label>起点建筑</label>
+          <div class="input-wrap">
+            <input type="text" id="dr-from" placeholder="如：图书馆南门" autocomplete="off">
+          </div>
+          <div class="dropdown" id="dr-from-dropdown"></div>
+        </div>
+        <div class="input-group">
+          <label>终点建筑</label>
+          <div class="input-wrap">
+            <input type="text" id="dr-to" placeholder="如：学二路口" autocomplete="off">
+          </div>
+          <div class="dropdown" id="dr-to-dropdown"></div>
+        </div>
         <p class="modal-note">道路是双向的，填写任意一个方向即可删除。</p>
         <button class="modal-submit danger" onclick="doDelRoad()">🗑️ 删除道路</button>
       </div>
@@ -315,43 +345,52 @@
   }
 
   // ═══ 搜索输入框 ══════════════════════════════════════
-  function setupInput(id, stateKey) {
-    const input = document.getElementById(id+'Input');
-    const dropdown = document.getElementById(id+'Dropdown');
+  function setupSearchInput(inputId, dropdownId, onSelect) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
     input.addEventListener('input', () => {
-      clearTimeout(debounceTimer[stateKey]);
-      appState[stateKey] = '';
-      debounceTimer[stateKey] = setTimeout(() => fetchSuggestions(input.value, dropdown, stateKey), 150);
+      clearTimeout(debounceTimer[inputId]);
+      if (onSelect) onSelect('');
+      debounceTimer[inputId] = setTimeout(() => fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect), 150);
     });
-    input.addEventListener('focus', () => { if(input.value) fetchSuggestions(input.value, dropdown, stateKey); });
+    input.addEventListener('focus', () => {
+      if (input.value) fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect);
+    });
     document.addEventListener('click', e => {
       if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
     });
   }
-  async function fetchSuggestions(q, dropdown, stateKey) {
+  function setupInput(id, stateKey) {
+    setupSearchInput(id+'Input', id+'Dropdown', value => { appState[stateKey] = value; });
+  }
+  async function fetchSuggestions(q, dropdown, inputId, dropdownId, onSelect) {
     if (!q.trim()) { dropdown.classList.remove('show'); return; }
     try {
       const res = await fetch('/api/buildings?q='+encodeURIComponent(q));
-      renderDropdown(await res.json(), dropdown, stateKey);
+      renderDropdown(await res.json(), dropdown, inputId, dropdownId, onSelect);
     } catch(e) {}
   }
-  function renderDropdown(items, dropdown, stateKey) {
+  function renderDropdown(items, dropdown, inputId, dropdownId, onSelect) {
     if (!items.length) {
       dropdown.innerHTML = '<div class="dropdown-empty">未找到匹配地点</div>';
     } else {
       dropdown.innerHTML = items.slice(0,12).map(item =>
-        `<div class="dropdown-item" onclick="selectItem(${escHtml(JSON.stringify(item.name))}, '${stateKey}')">
+        `<div class="dropdown-item" onclick="selectSearchItem(${escHtml(JSON.stringify(item.name))}, '${inputId}', '${dropdownId}')">
           <span class="iname">${escHtml(item.name)}</span>
           <span class="idesc">${escHtml(item.desc)}</span>
         </div>`
       ).join('');
     }
+    dropdown.dataset.onSelect = onSelect ? '1' : '';
     dropdown.classList.add('show');
   }
-  function selectItem(name, stateKey) {
-    appState[stateKey] = name;
-    document.getElementById(stateKey+'Input').value = name;
-    document.getElementById(stateKey+'Dropdown').classList.remove('show');
+  function selectSearchItem(name, inputId, dropdownId) {
+    const input = document.getElementById(inputId);
+    input.value = name;
+    if (inputId === 'fromInput') appState.from = name;
+    else if (inputId === 'toInput') appState.to = name;
+    else if (inputId === 'travInput') appState.trav = name;
+    document.getElementById(dropdownId).classList.remove('show');
   }
   function clearInput(stateKey) {
     appState[stateKey] = '';
@@ -514,6 +553,11 @@
   setupInput('from', 'from');
   setupInput('to',   'to');
   setupInput('trav', 'trav');
+  setupSearchInput('db-name', 'db-name-dropdown');
+  setupSearchInput('ar-from', 'ar-from-dropdown');
+  setupSearchInput('ar-to', 'ar-to-dropdown');
+  setupSearchInput('dr-from', 'dr-from-dropdown');
+  setupSearchInput('dr-to', 'dr-to-dropdown');
 
   // 回车触发导航
   document.getElementById('fromInput').addEventListener('keydown', e => { if(e.key==='Enter') navigate(); });
