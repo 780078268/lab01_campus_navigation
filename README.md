@@ -1,208 +1,103 @@
-# 校园导航系统
+# 🗺️ 北邮校园导航系统 (BUPT Campus Navigation System)
 
-基于 Java 实现的课程设计项目，面向北邮本部校园场景，提供建筑检索、最短路径查询、全校园遍历建议、地图节点标注以及基础地图数据管理功能。
+基于图论算法与纯原生技术栈构建的北京邮电大学（西土城校区）轻量级校园导航 Web 应用。本项目为数据结构课程设计，采用“单文件 Java 后端 + 原生 HTML/JS/Canvas 前端”的极简架构，无需配置复杂的环境即可开箱即用。
 
-项目采用“单文件 Java 后端 + 原生 HTML/CSS/JavaScript 前端”的实现方式，适合课程展示、本地运行和二次修改。
+## ✨ 核心亮点
 
-## 项目功能
+- **🚀 极简架构，零第三方依赖**：后端仅依赖 JDK 内置的 `com.sun.net.httpserver` 提供 RESTful API；前端纯手写原生 HTML/CSS/JS，无需 Node.js 或 Webpack。
 
-- 建筑检索：支持按名称精确匹配、前缀匹配和模糊搜索
-- 最短路径导航：基于 Dijkstra 算法计算起点到终点的最短路线
-- 全建筑遍历：基于最近邻贪心策略生成校园遍历顺序
-- 地图可视化：在地图上绘制路径、起终点和已标注节点
-- 坐标标注工具：支持为建筑或路口手动标注地图坐标并保存
-- 数据管理：支持在页面中新增/删除建筑、新增/删除道路
+- **🧠 高效的图论算法**：
+  
+  - **最短路径**：基于优先队列优化的 Dijkstra 算法，支持实时计算任意两点间最优路线。
+  
+  - **全图遍历（TSP近似）**：采用最近邻贪心策略，并**创新性引入惰性距离矩阵缓存**，将多轮 Dijkstra 调用的复杂度降至 O(1) 查表，实现毫秒级响应。
 
-## 技术实现
+- **🔍 智能检索系统**：支持精确匹配、前缀匹配与包含匹配的三级模糊搜索，迅速定位建筑。
 
-### 后端
+- **🎨 交互式地图可视化**：基于 HTML5 Canvas 实时绘制导航路线，配套独立的**坐标标注工具**，支持可视化管理地图节点。
 
-- 语言：Java
-- HTTP 服务：`com.sun.net.httpserver.HttpServer`
-- 图存储：邻接表
-- 最短路算法：Dijkstra
+- **🗄️ 动态数据管理**：支持通过 Web 界面实时新增/删除建筑与道路，数据自动持久化。
 
-核心代码位于 [CampusNavSystem.java](/Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation/java/src/CampusNavSystem.java)。
+## 🚀 快速开始
 
-### 前端
+### 环境要求
 
-- 导航主页：[index.html](/Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation/java/index.html)
-- 坐标标注页：[annotate.html](/Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation/java/annotate.html)
+- JDK 8 或更高版本（作者本人用的JDK21）
 
-前端使用原生 HTML、CSS、JavaScript 编写，通过调用本地 HTTP API 与后端交互。
+- 现代浏览器（Chrome / Edge / Safari）
 
-## 项目结构
+### 运行方式
 
-```text
-lab01_campus_navigation
-├── README.md
-├── java
-│   ├── src
-│   │   └── CampusNavSystem.java   # 后端主程序
-│   ├── index.html                 # 导航主页
-│   ├── annotate.html              # 坐标标注页面
-│   ├── test.txt                   # 地图数据文件
-│   ├── coordinates.json           # 节点坐标文件
-│   └── 北邮本部地图.jpg            # 地图底图
-└── out
-    └── production
-        └── java                   # 已编译 class 文件
+项目内置了跨平台启动脚本，代码会自动编译并启动本地服务器，同时自动打开浏览器。
+
+**Windows 用户：** 双击项目根目录下的 `run.bat` 即可运行。
+
+**macOS / Linux 用户：** 在终端执行以下命令：
+
+```
+bash run.sh
 ```
 
-## 数据说明
+系统启动后，默认访问地址为：[http://localhost:8080](https://www.google.com/search?q=http://localhost:8080 "null")
 
-### 1. 地图数据文件
+## 🗺️ 功能演示与使用指南
 
-项目默认读取 [test.txt](/Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation/java/test.txt)。
+1. **路线规划**：在主页 `http://localhost:8080/` 输入起点和终点（支持模糊搜索与下拉选择），回车即可在地图上生成最短路线。
 
-文件分为两个部分：
+2. **校园遍历**：输入任意出发点，点击“遍历所有建筑”，系统将生成一条经过全校 136 个非路口建筑的推荐访问顺序。
 
-- `[Buildings]`：记录地点名称和描述
-- `[Roads]`：记录两个地点之间的双向道路及距离
+3. **坐标标注**：访问 `http://localhost:8080/annotate`，可以在地图上点击打点，为新添加的建筑补充经纬度坐标，确保路线能被可视化绘制。
 
-示例：
+4. **数据管理**：点击主页右上角的“⚙️ 管理”面板，可对底层的图结构数据（建筑节点、道路边）进行动态增删。
 
-```text
-[Buildings]
-图书馆南门,图书馆出入口
-主楼路口,路口
+## 📂 项目结构
 
-[Roads]
-图书馆南门,图书馆路口,30
-图书馆路口,主楼路口,120
+```
+lab01_campus_navigation/
+├── README.md                  # 项目说明文档
+├── run.sh                     # macOS/Linux 启动脚本
+├── run.bat                    # Windows 启动脚本
+├── java/                      # 数据与前端资源目录
+│   ├── src/
+│   │   └── CampusNavSystem.java  # 🚀 后端核心主程序（包含HTTP服务与所有算法）
+│   ├── index.html             # 导航主页 (UI与逻辑)
+│   ├── annotate.html          # 坐标标注工具页面
+│   ├── test.txt               # 核心拓扑图数据 (172节点, 133边)
+│   ├── coordinates.json       # 地图节点相对坐标系数据
+│   └── 北邮本部地图.jpg         # 底图素材
+└── out/production/java/       # 自动生成的编译输出目录
 ```
 
-### 2. 坐标文件
+## 🔌 API 接口文档
 
-[coordinates.json](/Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation/java/coordinates.json) 用于保存地图节点坐标，格式如下：
+后端提供了标准的 RESTful API 供二次开发或前端解耦使用。
 
-```json
-{
-  "图书馆南门": [0.5123, 0.4188],
-  "主楼路口": [0.4631, 0.3772]
-}
-```
+| 接口说明       | 请求方式   | 路径                 | 参数示例                                                 |
+| ---------- | ------ | ------------------ | ---------------------------------------------------- |
+| **建筑检索**   | `GET`  | `/api/buildings`   | `?q=图书馆`                                             |
+| **最短路径查询** | `GET`  | `/api/route`       | `?from=起点&to=终点`                                     |
+| **全节点遍历**  | `GET`  | `/api/traverse`    | `?start=起点`                                          |
+| **获取节点坐标** | `GET`  | `/api/coordinates` | 无                                                    |
+| **保存节点坐标** | `POST` | `/api/coordinates` | `{"图书馆南门":[0.51, 0.41]}`                             |
+| **建筑数据管理** | `POST` | `/api/building`    | `{"action":"add", "name":"创新楼", "desc":"教学楼"}`       |
+| **道路数据管理** | `POST` | `/api/road`        | `{"action":"add", "from":"A", "to":"B", "dist":120}` |
 
-其中两个数分别表示节点在地图上的相对横纵坐标，取值范围通常在 `0` 到 `1` 之间。
+*(注：详细的请求体校验及错误处理机制请参考源码实现)*
 
-## 运行方式
+## ⚠️ 注意事项
 
-### 方式一：直接运行已编译版本
+1. **地图坐标一致性**：通过 Web 面板添加新建筑后，其默认仅存在于逻辑图中（路线结果以文字展示）。为了在地图上显示连线，请务必前往 `/annotate` 页面为其补充地图坐标。
 
-如果 `out/production/java` 中已有可用的 `.class` 文件，可以在项目根目录执行：
+2. **数据完整性防呆**：底层的 `test.txt` 采用逗号分隔，系统已在接口层面拦截了包含逗号的非法输入，请勿手动在数据文件中写入破坏性字符。
 
-```bash
-cd /Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation
-java -cp out/production/java CampusNavSystem
-```
+3. **端口占用**：默认监听 `8080` 端口，若被占用请在 `CampusNavSystem.java` 底部 `main` 方法中修改。
 
-### 方式二：重新编译再运行
+## 👨‍💻 作者与课程信息
 
-在项目根目录执行：
+- **课程背景**：数据结构课程设计 (2025-2026学年)
 
-```bash
-cd /Users/buptniaosuan/Desktop/BUPT.DS/lab01_campus_navigation
-javac -d out/production/java java/src/CampusNavSystem.java
-java -cp out/production/java CampusNavSystem
-```
+- **开发者**：尿酸仙人  | BUPT IST专业
 
-程序启动后默认监听：
+- **联系方式**：[780078268@qq.com](mailto:780078268@qq.com "null")
 
-```text
-http://localhost:8080
-```
-
-常用页面：
-
-- 导航主页：`http://localhost:8080/`
-- 坐标标注：`http://localhost:8080/annotate`
-
-## API 接口
-
-### 建筑查询
-
-```http
-GET /api/buildings?q=关键词
-```
-
-### 最短路径
-
-```http
-GET /api/route?from=起点&to=终点
-```
-
-### 遍历所有建筑
-
-```http
-GET /api/traverse?start=起点
-```
-
-### 获取/保存坐标
-
-```http
-GET /api/coordinates
-POST /api/coordinates
-```
-
-### 建筑管理
-
-```http
-POST /api/building
-```
-
-请求体示例：
-
-```json
-{ "action": "add", "name": "创新楼B座", "desc": "教学楼" }
-```
-
-### 道路管理
-
-```http
-POST /api/road
-```
-
-请求体示例：
-
-```json
-{ "action": "add", "from": "图书馆南门", "to": "主楼路口", "dist": 120 }
-```
-
-## 算法说明
-
-### 最短路径
-
-系统使用 Dijkstra 算法，以建筑和路口作为图中的节点，以道路距离作为边权，计算两点之间最短路径。
-
-### 全建筑遍历
-
-系统从指定起点出发，每一步选择当前最近的未访问建筑，生成一条近似最优的遍历路径。该方法实现简单、效率较高，但不保证全局最优。
-
-## 使用流程
-
-1. 启动 Java 程序
-2. 打开浏览器访问 `http://localhost:8080`
-3. 输入起点和终点进行导航
-4. 如需补充节点坐标，进入 `/annotate` 页面进行标注
-5. 如需修改数据，可在导航页右上角使用“管理”面板
-
-## 注意事项
-
-- 项目默认端口为 `8080`
-- 默认数据目录为 `java`
-- 程序启动时会读取 `java/test.txt`
-- 添加建筑后，建议及时到标注页面补充坐标，否则路线只能文字展示
-- `main` 方法中调用了 `open` 命令自动打开浏览器，该行为适合 macOS；如果在 Windows 或 Linux 上运行，可能需要删除或改写这部分逻辑
-
-## 适用场景
-
-- 数据结构课程设计
-- 图论与最短路径算法演示
-- 校园地图建模练习
-- Java Web 本地应用入门实践
-
-## 作者信息
-
-- 项目名称：校园导航系统
-- 课程背景：数据结构课程设计
-- 开发者：2024213672 李韶庸
+*如果这个项目对你有帮助，欢迎随时交流探讨代码与算法设计！*
