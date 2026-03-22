@@ -31,8 +31,18 @@ public class CampusNavSystem {
         int totalDist;
         String error;
         boolean isTraversal;
+        List<String> matchedStarts;
+        List<String> matchedEnds;
+        List<RouteOption> routeOptions;
         RouteResult(List<String> p, List<Integer> s, int t, boolean tr) { path=p; segmentDists=s; totalDist=t; isTraversal=tr; }
         RouteResult(String e) { error=e; }
+    }
+
+    static class RouteOption {
+        String from;
+        String to;
+        int totalDist;
+        RouteOption(String f, String t, int d) { from=f; to=t; totalDist=d; }
     }
 
     private final Map<String, Building> buildings = new LinkedHashMap<>();
@@ -138,34 +148,77 @@ public class CampusNavSystem {
         return segs;
     }
 
+    private List<String> resolveBuildingCandidates(String query) {
+        if (query == null || query.isEmpty()) return Collections.emptyList();
+        if (buildings.containsKey(query)) return Collections.singletonList(query);
+        return searchBuildings(query).stream()
+            .map(item -> item.get("name"))
+            .filter(Objects::nonNull)
+            .distinct()
+            .limit(12)
+            .collect(Collectors.toList());
+    }
+
     // ─── 最短路径 ───────────────────────────────────────────
     public RouteResult findShortestPath(String start, String end) {
-        if (!buildings.containsKey(start) || !buildings.containsKey(end))
+        List<String> startCandidates = resolveBuildingCandidates(start);
+        List<String> endCandidates = resolveBuildingCandidates(end);
+        if (startCandidates.isEmpty() || endCandidates.isEmpty())
             return new RouteResult("起点或终点名称不存在，请重新搜索");
-        DijkstraResult dr = dijkstra(start);
-        int total = dr.dist.getOrDefault(end, Integer.MAX_VALUE);
-        if (total == Integer.MAX_VALUE) return new RouteResult("路径不可达");
-        List<String> path = buildPath(dr.prev, start, end);
-        return new RouteResult(path, computeSegmentDists(path), total, false);
+
+        Map<String, DijkstraResult> dijkstraCache = new HashMap<>();
+        List<RouteOption> routeOptions = new ArrayList<>();
+        List<String> bestPath = Collections.emptyList();
+        List<Integer> bestSegs = Collections.emptyList();
+        int bestDist = Integer.MAX_VALUE;
+
+        for (String startCandidate : startCandidates) {
+            DijkstraResult dr = dijkstraCache.computeIfAbsent(startCandidate, this::dijkstra);
+            for (String endCandidate : endCandidates) {
+                if (!Objects.equals(start, end) && startCandidate.equals(endCandidate)) continue;
+                int dist = dr.dist.getOrDefault(endCandidate, Integer.MAX_VALUE);
+                if (dist == Integer.MAX_VALUE) continue;
+                routeOptions.add(new RouteOption(startCandidate, endCandidate, dist));
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestPath = buildPath(dr.prev, startCandidate, endCandidate);
+                    bestSegs = computeSegmentDists(bestPath);
+                }
+            }
+        }
+
+        if (routeOptions.isEmpty()) return new RouteResult("路径不可达");
+        routeOptions.sort(Comparator
+            .comparingInt((RouteOption option) -> option.totalDist)
+            .thenComparing(option -> option.from)
+            .thenComparing(option -> option.to));
+
+        RouteResult result = new RouteResult(bestPath, bestSegs, bestDist, false);
+        result.matchedStarts = startCandidates;
+        result.matchedEnds = endCandidates;
+        result.routeOptions = routeOptions;
+        return result;
     }
 
     // ─── 遍历所有建筑（最近邻贪心）────────────────────────────
     public RouteResult traverseAll(String start) {
-        if (!buildings.containsKey(start)) return new RouteResult("起点不存在");
+        List<String> startCandidates = resolveBuildingCandidates(start);
+        if (startCandidates.isEmpty()) return new RouteResult("起点不存在");
+        String resolvedStart = startCandidates.get(0);
         ensureDistMatrix(); // 首次调用时预计算，后续直接用缓存
         // 只遍历非路口节点
         List<String> targets = buildings.values().stream()
-            .filter(b -> !b.desc.equals("路口"))
+            .filter(b -> !"路口".equals(b.desc))
             .map(b -> b.name)
             .collect(Collectors.toList());
         Set<String> unvisited = new LinkedHashSet<>(targets);
-        unvisited.remove(start);
+        unvisited.remove(resolvedStart);
 
         List<String> visitOrder = new ArrayList<>();
         List<Integer> segDists  = new ArrayList<>();
-        visitOrder.add(start);
+        visitOrder.add(resolvedStart);
         int totalDist = 0;
-        String current = start;
+        String current = resolvedStart;
 
         while (!unvisited.isEmpty()) {
             Map<String, Integer> dists = distMatrix.get(current); // O(1) 查表
@@ -188,12 +241,13 @@ public class CampusNavSystem {
     public List<Map<String, String>> searchBuildings(String query) {
         List<Map<String, String>> exact = new ArrayList<>(), prefix = new ArrayList<>(), contains = new ArrayList<>();
         for (Building b : buildings.values()) {
+            String desc = b.desc == null ? "" : b.desc;
             Map<String, String> item = new HashMap<>();
-            item.put("name", b.name); item.put("desc", b.desc);
+            item.put("name", b.name); item.put("desc", desc);
             if (query == null || query.isEmpty()) { exact.add(item); continue; }
             if (b.name.equals(query)) exact.add(item);
             else if (b.name.startsWith(query)) prefix.add(item);
-            else if (b.name.contains(query) || b.desc.contains(query)) contains.add(item);
+            else if (b.name.contains(query) || desc.contains(query)) contains.add(item);
         }
         List<Map<String, String>> result = new ArrayList<>();
         result.addAll(exact); result.addAll(prefix); result.addAll(contains);
@@ -397,7 +451,36 @@ public class CampusNavSystem {
                 sb.append(r.segmentDists.get(i));
             }
         }
-        return sb.append("]}").toString();
+        sb.append("]");
+        if (r.matchedStarts != null) {
+            sb.append(",\"matchedStarts\":[");
+            for (int i = 0; i < r.matchedStarts.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append("\"").append(escapeJson(r.matchedStarts.get(i))).append("\"");
+            }
+            sb.append("]");
+        }
+        if (r.matchedEnds != null) {
+            sb.append(",\"matchedEnds\":[");
+            for (int i = 0; i < r.matchedEnds.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append("\"").append(escapeJson(r.matchedEnds.get(i))).append("\"");
+            }
+            sb.append("]");
+        }
+        if (r.routeOptions != null) {
+            sb.append(",\"routeOptions\":[");
+            for (int i = 0; i < r.routeOptions.size(); i++) {
+                RouteOption option = r.routeOptions.get(i);
+                if (i > 0) sb.append(",");
+                sb.append("{\"from\":\"").append(escapeJson(option.from))
+                    .append("\",\"to\":\"").append(escapeJson(option.to))
+                    .append("\",\"totalDist\":").append(option.totalDist)
+                    .append("}");
+            }
+            sb.append("]");
+        }
+        return sb.append("}").toString();
     }
 
     private String escapeJson(String s) {

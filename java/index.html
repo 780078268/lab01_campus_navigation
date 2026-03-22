@@ -96,6 +96,13 @@
     .error-card { background: #fff5f5; border: 1.5px solid #fcc; border-radius: 10px; padding: 13px; color: #c0392b; font-size: 13px; }
     .no-coord-tip { font-size: 10px; color: #f39c12; margin-top: 6px; }
     .no-coord-tip a { color: #f39c12; }
+    .candidate-card { margin-top: 12px; background: #fff; border: 1.5px solid #e7edf4; border-radius: 10px; padding: 12px; }
+    .candidate-meta { font-size: 11px; color: #8a97a6; line-height: 1.6; margin-bottom: 8px; }
+    .candidate-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; background: #f7f9fc; font-size: 12px; }
+    .candidate-item.best { background: #edf6ff; border: 1px solid #cfe4fb; }
+    .candidate-route { color: #334155; }
+    .candidate-dist { color: #1a3a5c; font-weight: 700; white-space: nowrap; }
 
     /* ── 管理弹窗 ── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; display: none; align-items: center; justify-content: center; }
@@ -465,6 +472,33 @@
       ? (data.totalDist/1000).toFixed(2)+'<span> km</span>'
       : data.totalDist+'<span> 米</span>';
 
+    let candidateHtml = '';
+    if (!data.isTraversal && data.routeOptions && data.routeOptions.length) {
+      const matchedStarts = data.matchedStarts || [];
+      const matchedEnds = data.matchedEnds || [];
+      const options = data.routeOptions.map((option, index) => {
+        const optionDist = option.totalDist >= 1000
+          ? (option.totalDist/1000).toFixed(2)+' km'
+          : option.totalDist+' 米';
+        return `<div class="candidate-item ${index===0 ? 'best' : ''}">
+          <span class="candidate-route">${escHtml(option.from)} → ${escHtml(option.to)}${index===0 ? '（地图显示）' : ''}</span>
+          <span class="candidate-dist">${optionDist}</span>
+        </div>`;
+      }).join('');
+      candidateHtml = `
+        <div class="candidate-card">
+          <div class="path-label">模糊匹配候选路线</div>
+          <div class="candidate-meta">
+            起点匹配：${matchedStarts.length} 个
+            ${matchedStarts.length ? `（${matchedStarts.map(escHtml).join('、')}）` : ''}
+            <br>
+            终点匹配：${matchedEnds.length} 个
+            ${matchedEnds.length ? `（${matchedEnds.map(escHtml).join('、')}）` : ''}
+          </div>
+          <div class="candidate-list">${options}</div>
+        </div>`;
+    }
+
     document.getElementById('resultSection').innerHTML = `
       <div class="result-card">
         <div class="result-meta">
@@ -474,7 +508,8 @@
         ${tag}${tipHtml}
         <div class="path-label">${data.isTraversal ? '建议访问顺序' : '完整路线'}</div>
         <div class="path-list">${steps}</div>
-      </div>`;
+      </div>
+      ${candidateHtml}`;
   }
 
   function showError(msg) {
