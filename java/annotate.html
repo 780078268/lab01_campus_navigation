@@ -28,7 +28,6 @@
 
     .main { display: flex; flex: 1; overflow: hidden; }
 
-    /* 左侧地图 */
     .map-area {
       flex: 1; display: flex; align-items: center; justify-content: center;
       overflow: hidden; position: relative;
@@ -37,7 +36,6 @@
     .map-wrapper img { display: block; max-width: 100%; max-height: calc(100vh - 52px); }
     .map-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-    /* 右侧面板 */
     .side-panel {
       width: 300px; background: white; display: flex; flex-direction: column;
       box-shadow: -2px 0 12px rgba(0,0,0,0.3);
@@ -79,7 +77,6 @@
     .list-item:hover .item-del { display: block; }
     .item-del:hover { color: #e74c3c; }
 
-    /* 底部状态 */
     .selected-hint {
       padding: 10px 14px; background: #fff8e1; border-top: 1px solid #ffe082;
       font-size: 12px; color: #795548; min-height: 38px;
@@ -119,10 +116,17 @@
 
   <script>
     let allBuildings = [];
-    let coordinates = {};   // { name: [x_frac, y_frac] }
+    let coordinates = {};
     let selectedName = null;
 
-    // 初始化：加载建筑列表和已有坐标
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     async function init() {
       const [bRes, cRes] = await Promise.all([
         fetch('/api/buildings?q='),
@@ -142,11 +146,11 @@
         const isSelected = b.name === selectedName;
         return `<div class="list-item ${hasDot ? 'annotated' : ''} ${isSelected ? 'selected' : ''}"
                      id="item-${CSS.escape(b.name)}"
-                     onclick="selectBuilding(${escHtml(JSON.stringify(b.name))})">
+                     onclick="selectBuilding(${escapeHtml(JSON.stringify(b.name))})">
           <div class="dot-indicator ${isSelected ? 'selected' : (hasDot ? 'done' : '')}"></div>
-          <span class="item-name">${escHtml(b.name)}</span>
-          <span class="item-desc">${escHtml(b.desc)}</span>
-          ${hasDot ? `<span class="item-del" onclick="event.stopPropagation();deleteCoord(${escHtml(JSON.stringify(b.name))})">✕</span>` : ''}
+          <span class="item-name">${escapeHtml(b.name)}</span>
+          <span class="item-desc">${escapeHtml(b.desc)}</span>
+          ${hasDot ? `<span class="item-del" onclick="event.stopPropagation();deleteCoord(${escapeHtml(JSON.stringify(b.name))})">✕</span>` : ''}
         </div>`;
       }).join('');
     }
@@ -172,14 +176,18 @@
     }
 
     function updateDoneCount() {
-      document.getElementById('doneCount').textContent = Object.keys(coordinates).length;
+      const currentNames = new Set(allBuildings.map(b => b.name));
+      const count = Object.keys(coordinates).filter(name => currentNames.has(name)).length;
+      document.getElementById('doneCount').textContent = count;
     }
 
-    // 地图点击：记录坐标
     function onImageLoad() {
       resizeCanvas();
       document.getElementById('mapCanvas').addEventListener('click', onMapClick);
-      window.addEventListener('resize', () => { resizeCanvas(); redraw(); });
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        redraw();
+      });
     }
 
     function resizeCanvas() {
@@ -202,7 +210,7 @@
       coordinates[selectedName] = [x, y];
       updateDoneCount();
 
-      // 自动跳到下一个未标注节点
+      // 标完一个点后自动跳到下一个未标注节点，减少重复点击列表的次数。
       const current = selectedName;
       const idx = allBuildings.findIndex(b => b.name === current);
       let next = null;
@@ -216,14 +224,14 @@
 
       filterList();
       redraw();
-      // 滚动到下一个节点
       if (next) {
         const el = document.querySelector(`#buildingList .list-item.selected`);
-        if (el) el.scrollIntoView({ block: 'nearest' });
+        if (el) {
+          el.scrollIntoView({ block: 'nearest' });
+        }
       }
     }
 
-    // 绘制所有已标注节点
     function redraw() {
       const canvas = document.getElementById('mapCanvas');
       const ctx = canvas.getContext('2d');
@@ -234,7 +242,6 @@
         const py = y * canvas.height;
         const isSelected = name === selectedName;
 
-        // 圆点
         ctx.beginPath();
         ctx.arc(px, py, isSelected ? 4 : 2, 0, Math.PI * 2);
         ctx.fillStyle = isSelected ? '#2980b9' : '#27ae60';
@@ -243,7 +250,6 @@
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 标签（只有选中时显示，普通节点不显示标签避免杂乱）
         if (isSelected) {
           ctx.font = 'bold 12px "PingFang SC", sans-serif';
           ctx.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -260,8 +266,6 @@
           ctx.fillText(name, px + 4, py + 3);
         }
       }
-
-      // 如果选中了但还没标注，在鼠标附近显示提示
     }
 
     async function saveCoords() {
@@ -274,7 +278,9 @@
         const data = await res.json();
         if (data.ok) alert(`✅ 保存成功！已保存 ${Object.keys(coordinates).length} 个节点坐标`);
         else alert('❌ 保存失败');
-      } catch(e) { alert('❌ 保存失败: ' + e.message); }
+      } catch (e) {
+        alert('❌ 保存失败: ' + e.message);
+      }
     }
 
     function clearAll() {
@@ -284,10 +290,6 @@
       updateDoneCount();
       filterList();
       redraw();
-    }
-
-    function escHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
     init();

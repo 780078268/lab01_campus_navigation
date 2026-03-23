@@ -27,19 +27,16 @@
 
     .main { display: flex; flex: 1; overflow: hidden; }
 
-    /* ── 地图 ── */
     .map-panel { flex: 1; background: #1a1a2e; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .map-wrapper { position: relative; line-height: 0; }
     .map-wrapper img { display: block; max-width: 100%; max-height: calc(100vh - 52px); }
     .map-wrapper canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
-    /* ── 右侧面板 ── */
     .control-panel { width: 360px; background: white; display: flex; flex-direction: column; box-shadow: -2px 0 12px rgba(0,0,0,0.08); overflow-y: auto; }
 
     .section { padding: 16px 18px; border-bottom: 1px solid #f0f0f0; }
     .section-title { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 12px; }
 
-    /* ── 输入框 ── */
     .input-group { position: relative; margin-bottom: 10px; }
     .input-label { font-size: 12px; color: #666; margin-bottom: 4px; display: block; }
     .input-wrap { position: relative; }
@@ -59,7 +56,6 @@
     .dropdown-item .idesc { font-size: 11px; color: #aaa; margin-left: auto; }
     .dropdown-empty { padding: 12px; text-align: center; color: #aaa; font-size: 12px; }
 
-    /* ── 按钮 ── */
     .nav-btn {
       width: 100%; padding: 10px; border: none; border-radius: 7px; font-size: 13px; font-weight: 600;
       cursor: pointer; transition: opacity 0.2s; color: white;
@@ -69,7 +65,6 @@
     .nav-btn:hover { opacity: 0.9; }
     .nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* ── 结果区 ── */
     .result-section { padding: 16px 18px; flex: 1; }
     .result-empty { text-align: center; color: #ccc; margin-top: 28px; font-size: 12px; line-height: 1.8; }
 
@@ -104,7 +99,6 @@
     .candidate-route { color: #334155; }
     .candidate-dist { color: #1a3a5c; font-weight: 700; white-space: nowrap; }
 
-    /* ── 管理弹窗 ── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; display: none; align-items: center; justify-content: center; }
     .modal-overlay.show { display: flex; }
     .modal { background: white; border-radius: 12px; width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.25); }
@@ -141,7 +135,6 @@
 </header>
 
 <div class="main">
-  <!-- 地图 -->
   <div class="map-panel">
     <div class="map-wrapper" id="mapWrapper">
       <img id="mapImg" src="/map.jpg" alt="北邮本部地图" onload="onMapLoad()">
@@ -149,10 +142,7 @@
     </div>
   </div>
 
-  <!-- 右侧面板 -->
   <div class="control-panel">
-
-    <!-- 路线规划 -->
     <div class="section">
       <div class="section-title">路线规划</div>
       <div class="input-group">
@@ -174,7 +164,6 @@
       <button class="nav-btn" id="navBtn" onclick="navigate()">开始导航</button>
     </div>
 
-    <!-- 遍历校园 -->
     <div class="section">
       <div class="section-title">遍历所有建筑</div>
       <div class="input-group">
@@ -188,14 +177,12 @@
       <button class="nav-btn green" id="travBtn" onclick="traverse()">🚶 遍历所有建筑（最近邻）</button>
     </div>
 
-    <!-- 结果 -->
     <div class="result-section" id="resultSection">
       <div class="result-empty">在左侧选择功能后<br>结果将显示在此处</div>
     </div>
   </div>
 </div>
 
-<!-- 管理弹窗 -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <div class="modal-header">
@@ -209,8 +196,6 @@
       <button class="m-tab" onclick="switchTab('delR')">删除道路</button>
     </div>
     <div class="modal-body">
-
-      <!-- 添加建筑 -->
       <div id="tab-addB">
         <div class="input-group"><label>建筑名称</label><input type="text" id="ab-name" placeholder="如：创新楼B座"></div>
         <div class="input-group"><label>描述/类型</label><input type="text" id="ab-desc" placeholder="如：教学楼"></div>
@@ -218,7 +203,6 @@
         <button class="modal-submit" onclick="doAddBuilding()">✅ 添加建筑</button>
       </div>
 
-      <!-- 删除建筑 -->
       <div id="tab-delB" style="display:none">
         <div class="input-group">
           <label>建筑名称</label>
@@ -231,7 +215,6 @@
         <button class="modal-submit danger" onclick="doDelBuilding()">🗑️ 删除建筑</button>
       </div>
 
-      <!-- 添加道路 -->
       <div id="tab-addR" style="display:none">
         <div class="input-group">
           <label>起点建筑</label>
@@ -251,7 +234,6 @@
         <button class="modal-submit" onclick="doAddRoad()">✅ 添加道路</button>
       </div>
 
-      <!-- 删除道路 -->
       <div id="tab-delR" style="display:none">
         <div class="input-group">
           <label>起点建筑</label>
@@ -277,28 +259,54 @@
 </div>
 
 <script>
-  const appState = { from:'', to:'', trav:'', coordinates:{}, currentPath:[], isTraversal:false };
-  let debounceTimer = {};
+  const appState = { from: '', to: '', trav: '', coordinates: {}, currentPath: [], isTraversal: false };
+  const debounceTimers = {};
 
-  // ═══ 地图 & Canvas ═══════════════════════════════════
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatDistance(dist) {
+    return dist >= 1000 ? `${(dist / 1000).toFixed(2)} km` : `${dist} 米`;
+  }
+
+  function bindEnter(inputId, handler) {
+    document.getElementById(inputId).addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        handler();
+      }
+    });
+  }
+
   function onMapLoad() {
     resizeCanvas();
-    window.addEventListener('resize', () => { resizeCanvas(); redrawCanvas(); });
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      redrawCanvas();
+    });
     loadCoordinates();
   }
+
   function resizeCanvas() {
     const img = document.getElementById('mapImg');
     const canvas = document.getElementById('mapCanvas');
     canvas.width = img.clientWidth;
     canvas.height = img.clientHeight;
   }
+
   async function loadCoordinates() {
     try {
       const res = await fetch('/api/coordinates');
       appState.coordinates = await res.json();
       redrawCanvas();
-    } catch(e) {}
+    } catch (e) {
+    }
   }
+
   function redrawCanvas() {
     const canvas = document.getElementById('mapCanvas');
     const ctx = canvas.getContext('2d');
@@ -306,24 +314,26 @@
     const coords = appState.coordinates;
     const path = appState.currentPath;
 
-    // 所有已标注节点（小蓝点）
     for (const [name, [x, y]] of Object.entries(coords)) {
-      if (path.includes(name)) continue;
-      const px = x * canvas.width, py = y * canvas.height;
+      if (path.includes(name)) {
+        continue;
+      }
+      const px = x * canvas.width;
+      const py = y * canvas.height;
       ctx.beginPath();
       ctx.arc(px, py, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(80,150,220,0.55)';
       ctx.fill();
     }
 
-    // 路径连线
     if (path.length >= 2) {
       const pts = path.map(n => coords[n]).filter(Boolean);
       if (pts.length >= 2) {
         ctx.beginPath();
-        ctx.moveTo(pts[0][0]*canvas.width, pts[0][1]*canvas.height);
-        for (let i = 1; i < pts.length; i++)
-          ctx.lineTo(pts[i][0]*canvas.width, pts[i][1]*canvas.height);
+        ctx.moveTo(pts[0][0] * canvas.width, pts[0][1] * canvas.height);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i][0] * canvas.width, pts[i][1] * canvas.height);
+        }
         ctx.strokeStyle = appState.isTraversal ? '#27ae60' : '#f39c12';
         ctx.lineWidth = 2.5;
         ctx.lineJoin = 'round';
@@ -331,81 +341,109 @@
       }
     }
 
-    // 路径节点
     for (let i = 0; i < path.length; i++) {
       const coord = coords[path[i]];
-      if (!coord) continue;
-      const px = coord[0]*canvas.width, py = coord[1]*canvas.height;
-      const isFirst = i===0, isLast = i===path.length-1;
+      if (!coord) {
+        continue;
+      }
+      const px = coord[0] * canvas.width;
+      const py = coord[1] * canvas.height;
+      const isFirst = i === 0;
+      const isLast = i === path.length - 1;
       const color = isFirst ? '#27ae60' : (isLast ? '#e74c3c' : (appState.isTraversal ? '#27ae60' : '#f39c12'));
-      const r = (isFirst||isLast) ? 7 : 4;
-      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5; ctx.stroke();
+      const r = (isFirst || isLast) ? 7 : 4;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
       if (isFirst || isLast) {
-        ctx.font = 'bold 11px "PingFang SC",sans-serif';
-        ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 2.5;
-        ctx.strokeText(path[i], px+9, py+4);
-        ctx.fillStyle = 'white'; ctx.fillText(path[i], px+9, py+4);
+        ctx.font = 'bold 11px "PingFang SC", sans-serif';
+        ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText(path[i], px + 9, py + 4);
+        ctx.fillStyle = 'white';
+        ctx.fillText(path[i], px + 9, py + 4);
       }
     }
   }
 
-  // ═══ 搜索输入框 ══════════════════════════════════════
   function setupSearchInput(inputId, dropdownId, onSelect) {
     const input = document.getElementById(inputId);
     const dropdown = document.getElementById(dropdownId);
     input.addEventListener('input', () => {
-      clearTimeout(debounceTimer[inputId]);
+      clearTimeout(debounceTimers[inputId]);
       if (onSelect) onSelect('');
-      debounceTimer[inputId] = setTimeout(() => fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect), 150);
+      debounceTimers[inputId] = setTimeout(() => {
+        fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect);
+      }, 150);
     });
     input.addEventListener('focus', () => {
-      if (input.value) fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect);
+      if (input.value) {
+        fetchSuggestions(input.value, dropdown, inputId, dropdownId, onSelect);
+      }
     });
     document.addEventListener('click', e => {
-      if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.remove('show');
+      }
     });
   }
+
   function setupInput(id, stateKey) {
-    setupSearchInput(id+'Input', id+'Dropdown', value => { appState[stateKey] = value; });
+    setupSearchInput(id + 'Input', id + 'Dropdown', value => {
+      appState[stateKey] = value;
+    });
   }
+
   async function fetchSuggestions(q, dropdown, inputId, dropdownId, onSelect) {
-    if (!q.trim()) { dropdown.classList.remove('show'); return; }
+    if (!q.trim()) {
+      dropdown.classList.remove('show');
+      return;
+    }
     try {
-      const res = await fetch('/api/buildings?q='+encodeURIComponent(q));
+      const res = await fetch('/api/buildings?q=' + encodeURIComponent(q));
       renderDropdown(await res.json(), dropdown, inputId, dropdownId, onSelect);
-    } catch(e) {}
+    } catch (e) {
+    }
   }
+
   function renderDropdown(items, dropdown, inputId, dropdownId, onSelect) {
     if (!items.length) {
       dropdown.innerHTML = '<div class="dropdown-empty">未找到匹配地点</div>';
     } else {
       dropdown.innerHTML = items.slice(0,12).map(item =>
-        `<div class="dropdown-item" onclick="selectSearchItem(${escHtml(JSON.stringify(item.name))}, '${inputId}', '${dropdownId}')">
-          <span class="iname">${escHtml(item.name)}</span>
-          <span class="idesc">${escHtml(item.desc)}</span>
+        `<div class="dropdown-item" onclick="selectSearchItem(${escapeHtml(JSON.stringify(item.name))}, '${inputId}', '${dropdownId}')">
+          <span class="iname">${escapeHtml(item.name)}</span>
+          <span class="idesc">${escapeHtml(item.desc)}</span>
         </div>`
       ).join('');
     }
     dropdown.dataset.onSelect = onSelect ? '1' : '';
     dropdown.classList.add('show');
   }
+
   function selectSearchItem(name, inputId, dropdownId) {
     const input = document.getElementById(inputId);
     input.value = name;
-    if (inputId === 'fromInput') appState.from = name;
-    else if (inputId === 'toInput') appState.to = name;
-    else if (inputId === 'travInput') appState.trav = name;
+    if (inputId === 'fromInput') {
+      appState.from = name;
+    } else if (inputId === 'toInput') {
+      appState.to = name;
+    } else if (inputId === 'travInput') {
+      appState.trav = name;
+    }
     document.getElementById(dropdownId).classList.remove('show');
   }
+
   function clearInput(stateKey) {
     appState[stateKey] = '';
-    document.getElementById(stateKey+'Input').value = '';
-    document.getElementById(stateKey+'Dropdown').classList.remove('show');
+    document.getElementById(stateKey + 'Input').value = '';
+    document.getElementById(stateKey + 'Dropdown').classList.remove('show');
   }
 
-  // ═══ 导航 ════════════════════════════════════════════
   async function navigate() {
     if (!appState.from) appState.from = document.getElementById('fromInput').value.trim();
     if (!appState.to)   appState.to   = document.getElementById('toInput').value.trim();
@@ -417,11 +455,12 @@
       if (data.error) { showError(data.error); appState.currentPath=[]; }
       else { showResult(data); appState.currentPath=data.path; appState.isTraversal=false; }
       redrawCanvas();
-    } catch(e) { showError('服务器连接失败'); }
+    } catch (e) {
+      showError('服务器连接失败');
+    }
     finally { setLoading('navBtn', false, '开始导航'); }
   }
 
-  // ═══ 遍历 ════════════════════════════════════════════
   async function traverse() {
     if (!appState.trav) appState.trav = document.getElementById('travInput').value.trim();
     if (!appState.trav) { showError('请输入出发点'); return; }
@@ -432,7 +471,9 @@
       if (data.error) { showError(data.error); appState.currentPath=[]; }
       else { showResult(data); appState.currentPath=data.path; appState.isTraversal=true; }
       redrawCanvas();
-    } catch(e) { showError('服务器连接失败'); }
+    } catch (e) {
+      showError('服务器连接失败');
+    }
     finally { setLoading('travBtn', false, '🚶 遍历所有建筑（最近邻）'); }
   }
 
@@ -441,7 +482,6 @@
     btn.disabled = loading; btn.textContent = text;
   }
 
-  // ═══ 结果展示 ════════════════════════════════════════
   function showResult(data) {
     const coords = appState.coordinates;
     const missing = data.path.filter(n => !coords[n]);
@@ -449,11 +489,10 @@
       ? `<span class="result-tag tag-traverse">遍历模式 · ${data.path.length} 个建筑</span>`
       : `<span class="result-tag tag-route">最短路线 · ${data.path.length} 个节点</span>`;
 
-    // 构建路径列表（含每段距离）
     let steps = '';
     for (let i = 0; i < data.path.length; i++) {
       const isFirst = i===0, isLast = i===data.path.length-1;
-      steps += `<div class="path-step"><div class="path-dot"></div><span class="path-name">${escHtml(data.path[i])}</span></div>`;
+      steps += `<div class="path-step"><div class="path-dot"></div><span class="path-name">${escapeHtml(data.path[i])}</span></div>`;
       if (!isLast && data.segmentDists && data.segmentDists[i] !== undefined) {
         const km = data.segmentDists[i] >= 1000
           ? (data.segmentDists[i]/1000).toFixed(1)+'km'
@@ -477,11 +516,9 @@
       const matchedStarts = data.matchedStarts || [];
       const matchedEnds = data.matchedEnds || [];
       const options = data.routeOptions.map((option, index) => {
-        const optionDist = option.totalDist >= 1000
-          ? (option.totalDist/1000).toFixed(2)+' km'
-          : option.totalDist+' 米';
+        const optionDist = formatDistance(option.totalDist);
         return `<div class="candidate-item ${index===0 ? 'best' : ''}">
-          <span class="candidate-route">${escHtml(option.from)} → ${escHtml(option.to)}${index===0 ? '（地图显示）' : ''}</span>
+          <span class="candidate-route">${escapeHtml(option.from)} → ${escapeHtml(option.to)}${index===0 ? '（地图显示）' : ''}</span>
           <span class="candidate-dist">${optionDist}</span>
         </div>`;
       }).join('');
@@ -490,10 +527,10 @@
           <div class="path-label">模糊匹配候选路线</div>
           <div class="candidate-meta">
             起点匹配：${matchedStarts.length} 个
-            ${matchedStarts.length ? `（${matchedStarts.map(escHtml).join('、')}）` : ''}
+            ${matchedStarts.length ? `（${matchedStarts.map(escapeHtml).join('、')}）` : ''}
             <br>
             终点匹配：${matchedEnds.length} 个
-            ${matchedEnds.length ? `（${matchedEnds.map(escHtml).join('、')}）` : ''}
+            ${matchedEnds.length ? `（${matchedEnds.map(escapeHtml).join('、')}）` : ''}
           </div>
           <div class="candidate-list">${options}</div>
         </div>`;
@@ -513,15 +550,17 @@
   }
 
   function showError(msg) {
-    document.getElementById('resultSection').innerHTML = `<div class="error-card">❌ ${escHtml(msg)}</div>`;
+    document.getElementById('resultSection').innerHTML = `<div class="error-card">❌ ${escapeHtml(msg)}</div>`;
   }
 
-  // ═══ 管理弹窗 ════════════════════════════════════════
   function openModal() {
     document.getElementById('modalOverlay').classList.add('show');
     document.getElementById('modalMsg').className = 'modal-msg';
   }
-  function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('show');
+  }
 
   let currentTab = 'addB';
   function switchTab(tab) {
@@ -581,10 +620,6 @@
     else showModalMsg(false, data.error);
   }
 
-  function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
   setupInput('from', 'from');
   setupInput('to',   'to');
   setupInput('trav', 'trav');
@@ -594,10 +629,9 @@
   setupSearchInput('dr-from', 'dr-from-dropdown');
   setupSearchInput('dr-to', 'dr-to-dropdown');
 
-  // 回车触发导航
-  document.getElementById('fromInput').addEventListener('keydown', e => { if(e.key==='Enter') navigate(); });
-  document.getElementById('toInput').addEventListener('keydown',   e => { if(e.key==='Enter') navigate(); });
-  document.getElementById('travInput').addEventListener('keydown', e => { if(e.key==='Enter') traverse(); });
+  bindEnter('fromInput', navigate);
+  bindEnter('toInput', navigate);
+  bindEnter('travInput', traverse);
 </script>
 </body>
 </html>
